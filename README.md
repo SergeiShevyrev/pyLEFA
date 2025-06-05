@@ -33,6 +33,8 @@ Sergei Shevyrev, 2024 LEFA: Lineament Extraction and Fracture Analysis. http://l
 
 Or, please, cite some of articles below:
 
+Shevyrev, S.; Boriskina, N. Analysis of Structural Position of Carlin-Type Gold Deposits with Lineament Analysis of Remote Sensing Data Using pyLEFA Software. Minerals 2025, 15, 219. https://doi.org/10.3390/min15030219 
+
 Shevyrev, S. Neotectonics, remote sensing and erosion cut of ore-controlling structures of the Mnogovershinnoe gold-silver deposit (Khabarovsk Krai, Russian Far East).  Ore Geology Reviews, https://doi.org/10.1016/j.oregeorev.2018.11.016 
 
 Shevyrev, S, Carranza, EJM. Modelling of geodynamic regimes of precious metal‐bearing porphyry deposits: Lazurnoe deposit (Sikhote–Alin Belt, Far East) case study. Geological Journal. 2020; 1– 20. https://doi.org/10.1002/gj.3935
