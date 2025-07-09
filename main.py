@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QMenu, QToolBar, 
     QAction, QActionGroup, QTextEdit, QWidget, QListWidget, QPushButton, QLabel, QVBoxLayout, QHBoxLayout, \
     QMessageBox, QScrollArea, \
     QSplashScreen, QProgressBar, QSpacerItem, QHBoxLayout, QTextEdit, QFileDialog, QListWidgetItem, QAbstractItemView, \
-    QStatusBar, QGridLayout, QDial, QToolBox, QRadioButton, QGroupBox, QSpinBox, QTabWidget, QComboBox, QPlainTextEdit, \
+    QStatusBar, QGridLayout, QDial, QToolBox, QRadioButton, QGroupBox, QSpinBox,QDoubleSpinBox, QTabWidget, QComboBox, QPlainTextEdit, \
     QInputDialog
 
 from PyQt5.QtGui import QCursor, QPixmap, QIcon
@@ -30,13 +30,15 @@ try:
 except ModuleNotFoundError:
     from osgeo import gdal, ogr
 
+from scipy.interpolate import LinearNDInterpolator    
+
 # set proper current directory
 current_dir = os.path.abspath(os.path.dirname(sys.argv[0]))
 os.chdir(current_dir)
 
 # import user function
 from pyLEFA_Functions import gray2binary, detectPLineHough, detectPLineHough2, uniteLines2, lineKB, \
-    createSHPfromDictionary, \
+    createSHPfromDictionary, adjusted_canny, \
     saveLinesShpFile, saveLinesShpFile2, rasterize_shp, rasterize_shp3, saveGeoTiff, get_minkowski, \
     get_pixels_sum, get_average_val, build_rose_diag, get_probability_matrix, get_shp_extent
 
@@ -244,13 +246,13 @@ class Window(QMainWindow):
         """Initializer."""
         super().__init__(parent)
 
-        self.resize(580, 70)
+        self.resize(700, 70)
 
-        self.settings = QtCore.QSettings('FEGI', 'pyLEFA0.61a')
+        self.settings = QtCore.QSettings('FEGI', 'pyLEFA0.62a')
 
         # default settings dictionary
         defaults = {
-            'binarization': 'canny',
+            'binarization': 'none',
             'line_sigma': 1,
             'line_tresh': 5,
             'line_length': 3,
@@ -261,7 +263,10 @@ class Window(QMainWindow):
             'density_window_size': 100,
             'fractal_window_size': 100,
             'raster_res': 10,
-            'raster_radius': 1000
+            'raster_radius': 1000,
+            'canny_sigma':10,
+            'canny_lowt':10,
+            'canny_hight':30
         }
 
         if not self.settings.contains("data"):
@@ -290,6 +295,28 @@ class Window(QMainWindow):
         if not os.path.exists(self.preset_faults_folder):
             os.mkdir(self.preset_faults_folder)
 
+
+        # name of language settings file
+        self.localization = 'localization.xml'
+        self.settings_lang_file = 'language.sav'  # store saved
+        self.selected_language = 'eng'  # default language
+
+        #
+        # try to load and parse language file
+        self.language_dict = []
+        try:
+            with open(self.localization, 'r', encoding='utf-8') as file:
+                my_xml = file.read()
+            my_dict = xmltodict.parse(my_xml)
+            self.language_dict = my_dict['body']
+        except:
+            QMessageBox.critical(self, 'Error loading language file.',
+                                 'Language file could not be loaded!',
+                                 QMessageBox.Ok, QMessageBox.Ok)
+            self.close()
+        self.lang_actions = {}
+        # try to load save language file
+
         self._createActions()
         self._createMenuBar()
         self._createToolBars()
@@ -298,11 +325,7 @@ class Window(QMainWindow):
         # bind menu actions and functions
         self.exitAction.triggered.connect(self.close)
 
-        # name of language settings file
-        self.localization = 'localization.xml'
-        self.settings_lang_file = 'language.sav'  # store saved
-        self.selected_language = 'eng'  # default language
-
+        
         # layers icons
         self.pict_vect_layer = os.path.join('resources', 'icovlayer.png')
         self.pict_pnt_layer = os.path.join('resources', 'icoplayer.png')
@@ -365,21 +388,7 @@ class Window(QMainWindow):
         self.pbar.hide()
         self._statusbar_label.hide()
 
-        #
-        # try to load and parse language file
-        self.language_dict = []
-        try:
-            with open(self.localization, 'r', encoding='utf-8') as file:
-                my_xml = file.read()
-            my_dict = xmltodict.parse(my_xml)
-            self.language_dict = my_dict['body']
-        except:
-            QMessageBox.critical(self, 'Error loading language file.',
-                                 'Language file could not be loaded!',
-                                 QMessageBox.Ok, QMessageBox.Ok)
-            self.close()
-        self.lang_actions = {}
-        # try to load save language file
+        
 
         # add language group into settings menu
         language_group = QActionGroup(self)
@@ -616,84 +625,99 @@ class Window(QMainWindow):
         new_project_button_icon_path = os.path.join('resources', 'b_new.png')
         new_project_button_icon.addPixmap(QtGui.QPixmap(new_project_button_icon_path), QtGui.QIcon.Normal,
                                           QtGui.QIcon.Off)
-        new_project_button_tooltip = 'Create new project'
+        new_project_button_tooltip = self.language_dict['commands']['new_project_button_tooltip'][self.selected_language]
 
         save_project_button = QToolButton(self)
         save_project_button_icon = QtGui.QIcon()
         save_project_button_icon_path = os.path.join('resources', 'b_save.png')
         save_project_button_icon.addPixmap(QtGui.QPixmap(save_project_button_icon_path), QtGui.QIcon.Normal,
                                            QtGui.QIcon.Off)
-        save_project_button_tooltip = 'Save project'
+        save_project_button_tooltip = self.language_dict['commands']['save_project_button_tooltip'][self.selected_language]
 
         open_project_button = QToolButton(self)
         open_project_button_icon = QtGui.QIcon()
         open_project_button_icon_path = os.path.join('resources', 'b_open.png')
         open_project_button_icon.addPixmap(QtGui.QPixmap(open_project_button_icon_path), QtGui.QIcon.Normal,
                                            QtGui.QIcon.Off)
-        open_project_button_tooltip = 'Open existing project...'
+        open_project_button_tooltip = self.language_dict['commands']['open_project_button_tooltip'][self.selected_language]
 
         open_datasource_button = QToolButton(self)
         open_datasource_button_icon = QtGui.QIcon()
         open_datasource_button_path = os.path.join('resources', 'b_opendata.png')
         open_datasource_button_icon.addPixmap(QtGui.QPixmap(open_datasource_button_path), QtGui.QIcon.Normal,
                                               QtGui.QIcon.Off)
-        open_datasource_button_tooltip = 'Open source of vector or raster data...'
+        open_datasource_button_tooltip = self.language_dict['commands']['open_rastervector_button_tooltip'][self.selected_language]
 
         open_shp_button = QToolButton(self)
         open_shp_button_icon = QtGui.QIcon()
         open_shp_button_icon_path = os.path.join('resources', 'b_openvect.png')
         open_shp_button_icon.addPixmap(QtGui.QPixmap(open_shp_button_icon_path), QtGui.QIcon.Normal,
                                        QtGui.QIcon.Off)
-        open_shp_button_tooltip = 'Open SHP vector...'
+        open_shp_button_tooltip = self.language_dict['commands']['open_shp_button_tooltip'][self.selected_language]
+
+        #detect_edges_canny_button
+        detect_edges_canny_button = QToolButton(self)
+        detect_edges_canny_button_icon = QtGui.QIcon()
+        detect_edges_canny_button_icon_path = os.path.join('resources', 'b_canny.png')
+        detect_edges_canny_button_icon.addPixmap(QtGui.QPixmap(detect_edges_canny_button_icon_path), QtGui.QIcon.Normal,
+                                         QtGui.QIcon.Off)
+        detect_line_button_tooltip = self.language_dict['commands']['detect_canny_button_tooltip'][self.selected_language]
+
+        rasterdensmap_canny_button = QToolButton(self)
+        rasterdensmap_canny_button_icon = QtGui.QIcon()
+        rasterdensmap_canny_button_icon_path = os.path.join('resources', 'b_raster_densmap.png')
+        rasterdensmap_canny_button_icon.addPixmap(QtGui.QPixmap(rasterdensmap_canny_button_icon_path), QtGui.QIcon.Normal,
+                                         QtGui.QIcon.Off)
+        rasterdensmap_canny_button_tooltip = self.language_dict['commands']['rasterdensmap_canny_button_tooltip'][self.selected_language]
 
         detect_line_button = QToolButton(self)
         detect_line_button_icon = QtGui.QIcon()
         detect_line_button_icon_path = os.path.join('resources', 'b_detectlines.png')
         detect_line_button_icon.addPixmap(QtGui.QPixmap(detect_line_button_icon_path), QtGui.QIcon.Normal,
                                           QtGui.QIcon.Off)
-        detect_line_button_tooltip = 'Detect lines on image...'
+        detect_line_button_tooltip = self.language_dict['commands']['detect_line_button_tooltip'][self.selected_language]
 
         detect_fault_button = QToolButton(self)
         detect_fault_button_icon = QtGui.QIcon()
         detect_fault_button_icon_path = os.path.join('resources', 'b_detectfaults.png')
         detect_fault_button_icon.addPixmap(QtGui.QPixmap(detect_fault_button_icon_path), QtGui.QIcon.Normal,
                                            QtGui.QIcon.Off)
-        detect_fault_button_tooltip = 'Detect faults over detected lines...'
+        detect_fault_button_tooltip = self.language_dict['commands']['detect_fault_button_tooltip'][self.selected_language]
 
         compute_line_dens_button = QToolButton()
         compute_line_dens_button_icon = QtGui.QIcon()
         compute_line_dens_button_icon_path = os.path.join('resources', 'b_density.png')
         compute_line_dens_button_icon.addPixmap(QtGui.QPixmap(compute_line_dens_button_icon_path), QtGui.QIcon.Normal,
                                                 QtGui.QIcon.Off)
-        compute_line_dens_button_tooltip = 'Compute line density map'
+        compute_line_dens_button_tooltip = self.language_dict['commands']['compute_line_dens_button_tooltip'][self.selected_language] 
 
         compute_minkowski_button = QToolButton()
         compute_minkowski_button_icon = QtGui.QIcon()
         compute_minkowski_button_icon_path = os.path.join('resources', 'b_calc_minkowski.png')
         compute_minkowski_button_icon.addPixmap(QtGui.QPixmap(compute_minkowski_button_icon_path), QtGui.QIcon.Normal,
                                                 QtGui.QIcon.Off)
-        compute_minkowski_button_tooltip = 'Compute Mikowski fractal dimension coverage'
+        compute_minkowski_button_tooltip = self.language_dict['commands']['compute_minkowski_button_tooltip'][self.selected_language] 
 
         compute_rose_button = QToolButton()
         compute_rose_button_icon = QtGui.QIcon()
         compute_rose_button_icon_path = os.path.join('resources', 'b_rose.png')
         compute_rose_button_icon.addPixmap(QtGui.QPixmap(compute_rose_button_icon_path), QtGui.QIcon.Normal,
                                            QtGui.QIcon.Off)
-        compute_rose_button_tooltip = 'Compute rose diagram for line file'
+        compute_rose_button_tooltip = self.language_dict['commands']['compute_rose_button_tooltip'][self.selected_language] 
 
         compute_heatmap_button = QToolButton()
         compute_heatmap_button_icon = QtGui.QIcon()
         compute_heatmap_button_icon_path = os.path.join('resources', 'b_heatmap.png')
         compute_heatmap_button_icon.addPixmap(QtGui.QPixmap(compute_heatmap_button_icon_path), QtGui.QIcon.Normal,
                                               QtGui.QIcon.Off)
-        compute_heatmap_button_tooltip = 'Compute heatmap diagram for point shape file'
+        compute_heatmap_button_tooltip = self.language_dict['commands']['compute_heatmap_button_tooltip'][self.selected_language] 
 
         compute_datatable_button = QToolButton()
         compute_datatable_button_icon = QtGui.QIcon()
         compute_datatable_button_icon_path = os.path.join('resources', 'b_data.png')
         compute_datatable_button_icon.addPixmap(QtGui.QPixmap(compute_datatable_button_icon_path), QtGui.QIcon.Normal,
                                                 QtGui.QIcon.Off)
-        compute_datatable_button_tooltip = 'Compute datatable for line and faults file'
+        compute_datatable_button_tooltip =self.language_dict['commands']['compute_datatable_button_tooltip'][self.selected_language] 
 
         # adding icon to the toolbuttonss
         new_project_button.setIcon(new_project_button_icon)
@@ -719,6 +743,14 @@ class Window(QMainWindow):
         open_shp_button.setIcon(open_shp_button_icon)
         open_shp_button.clicked.connect(lambda: self.file_open_dialogue(type_filter='shp'))
         open_shp_button.setToolTip(open_shp_button_tooltip)
+
+        detect_edges_canny_button.setIcon(detect_edges_canny_button_icon)
+        detect_edges_canny_button.clicked.connect(self.analysis_detect_edges)
+        detect_edges_canny_button.setToolTip(detect_line_button_tooltip)
+
+        rasterdensmap_canny_button.setIcon(rasterdensmap_canny_button_icon)
+        rasterdensmap_canny_button.clicked.connect(self.create_rasterdensmap)
+        rasterdensmap_canny_button.setToolTip(rasterdensmap_canny_button_tooltip)
 
         detect_line_button.setIcon(detect_line_button_icon)
         detect_line_button.clicked.connect(self.analysis_detect_lines)
@@ -758,12 +790,14 @@ class Window(QMainWindow):
         fileToolBar.addWidget(open_shp_button)
 
         # fileToolBar.addWidget(open_datasource_button)
+        editToolBar.addWidget(detect_edges_canny_button)
         editToolBar.addWidget(detect_line_button)
         editToolBar.addWidget(detect_fault_button)
         editToolBar.addWidget(compute_minkowski_button)
         editToolBar.addWidget(compute_line_dens_button)
         editToolBar.addWidget(compute_rose_button)
         editToolBar.addWidget(compute_heatmap_button)
+        editToolBar.addWidget(rasterdensmap_canny_button)
         editToolBar.addWidget(compute_datatable_button)
         self.addToolBar(editToolBar)
 
@@ -833,6 +867,11 @@ class Window(QMainWindow):
             event.ignore()
 
     # TODO analysis functions
+    def analysis_detect_edges(self):
+        print('Detect edges(Canny) pressed')
+        # open file for analysis select dialogue
+        self.selectFileForAnyAnalysis(ftype='tif', type_analysis='canny')
+
     def analysis_detect_lines(self):
         print('Detect lines pressed')
         # open file for analysis select dialogue
@@ -847,6 +886,11 @@ class Window(QMainWindow):
         print('Density analysis pressed')
         # open file for analysis select dialogue
         self.selectFileForAnyAnalysis(ftype='shp', type_analysis='density', txt='Select linear features SHP file')
+
+    def create_rasterdensmap(self):
+        print('Create rasterdensmap pressed')
+        # open file for analysis select dialogue
+        self.selectFileForAnyAnalysis(ftype='shp', type_analysis='rasterdensmap', txt='Select linear features SHP file for raster density GeoTiff')
 
     def analysis_minkowski(self):
         print('Minkowski analysis pressed')
@@ -891,14 +935,156 @@ class Window(QMainWindow):
                                                                   multichoice=multichoice)
             self.select_file_analysis.show()
 
-    # this !!!function runs any type of analysis from file selection window on Ok
+    #TODO do_analysis!!! this !!!function runs any type of analysis from file selection window on Ok
     def do_analysis(self):
         try:
             print(self.current_method, 'method of analysis for', self.file_for_analysis[0], 'has been activated')
         except:
             print('None file was specified')
         # line, faults, density, minkowski
-        if self.current_method == 'line':
+        #TODO store canny settings here from default, update when changed 
+        if self.current_method == 'rasterdensmap':
+            print('Computing of Raster densmap has to be here!')
+
+            save_geotiff_path = self.save_tif_file()
+            if save_geotiff_path:
+                
+                lines2 = self.get_features_by_name_id(name=self.file_for_analysis[0])
+                extent = self.get_extent_by_name_id(name=self.file_for_analysis[0])
+                dpxy = [self.settings.value('data')['raster_res'], self.settings.value('data')['raster_res']]
+                img = rasterize_shp3(lines2, extent=extent, dpxy=dpxy)
+                #img = np.flipud(img) #flip image, correction
+                win_size = self.settings.value('data')['raster_radius']
+
+                print('win_size=',win_size)
+                hsize, wsize = np.shape(img)
+
+                if win_size > 0.1*hsize or win_size > 0.1*wsize:
+                    self.msg_info(self.language_dict['commands']['msg_pixel_size_too_big'][self.selected_language])
+                    win_size = int(((hsize+wsize)//2)*0.1)
+
+                rcell, ccell,valcell = [],[],[] #массив координат ячеек окон осреднения и количества точек линий в них
+
+                for cc in range(wsize//win_size + 1):
+                    for rr in range(hsize//win_size + 1):
+                        sub_matrix = img[rr*win_size:(rr+1)*win_size,cc*win_size:(cc+1)*win_size]
+                        rcell.append(rr*win_size+win_size/2)
+                        ccell.append(cc*win_size+win_size/2)
+                        valcell.append(np.sum(sub_matrix))
+
+                #testing info
+                # print('ccell=',ccell)
+                # print('rcell=',rcell)
+                # print('valcell=',valcell)
+
+                #интерполируем по сетке
+                X = np.linspace(min(ccell), max(ccell))
+                Y = np.linspace(min(rcell), max(rcell))
+                X, Y = np.meshgrid(X, Y)  # 2D grid for interpolation
+                try:
+                    interp = LinearNDInterpolator(list(zip(ccell, rcell)), valcell)
+                    img_i = interp(X, Y)
+                    #img_i = np.flipud(img_i)
+                    hsize, wsize = np.shape(img_i)
+
+                    print('extent=',extent)
+
+                    shp_file_path = self.get_path_by_name_id(name=self.file_for_analysis[0])
+                    extent = self.get_extent_by_name_id(name=self.file_for_analysis[0])
+
+                    driver = ogr.GetDriverByName('ESRI Shapefile')
+                    dataSource = driver.Open(shp_file_path, 0)  # 0 means read-only. 1 means writeable.
+                    layer = dataSource.GetLayer()
+                    projection = layer.GetSpatialRef();
+                    driver = gdal.GetDriverByName("GTiff")
+                    outdata = driver.Create(save_geotiff_path, wsize, hsize, 1, gdal.GDT_Float64)
+                    if extent[0]>extent[1]:
+                        #dpxy[1] = dpxy[1]*-1
+                        horres = -(extent[1]-extent[0])//wsize 
+                    else:
+                        horres = (extent[1]-extent[0])//wsize 
+                    if extent[2]>extent[3]:
+                        vertres = -(extent[3]-extent[2])//hsize 
+                    else:
+                        vertres = (extent[3]-extent[2])//hsize
+                    outdata.SetGeoTransform((extent[0], horres, 0, extent[2], 0, vertres));
+                    #outdata.SetProjection(projection.ExportToWkt())  ##sets same projection as input
+                    outdata.GetRasterBand(1).WriteArray(img_i)
+                    outdata.GetRasterBand(1).SetNoDataValue(0)
+                    outdata.FlushCache()
+                except:
+                    self.msg_info(self.language_dict['commands']['msg_unknown_error'][self.selected_language])
+                    
+
+                # # reopen file to project
+                self.add_data_obj(save_geotiff_path, parent_obj=self.file_for_analysis[0])
+
+                # rewrite data in a layer canny edges (correction)
+                try:
+                    basename = os.path.basename(save_geotiff_path).split('.')[0]
+                except:
+                    basename = os.path.basename(save_geotiff_path)
+                print('basename=',basename)
+                self.set_data_by_name_id(name=basename, newdata=img_i)
+                self.update_list2storage()
+                del img,img_i 
+                
+                print('Done!')
+
+
+        elif self.current_method == 'canny':
+            save_geotiff_path = self.save_tif_file(txt='Please, select filename for Canny edges')
+            if save_geotiff_path:
+                print(save_geotiff_path)
+                print('Need to do stadnalone Canny analysis and save GeoTiff')
+                print('bin method=',self.settings.value('data')['binarization'])
+                print('sigma canny=',self.settings.value('data')['canny_sigma'])
+                print('canny_lowt=',self.settings.value('data')['canny_lowt'])
+                print('canny_hight=',self.settings.value('data')['canny_hight'])
+                try:
+                    print('file for analysis',self.file_for_analysis[0])
+                except:
+                    print('Something is wrong with the file for analysis')
+                    return None
+                gdal_obj = self.get_gdal_by_name_id(name=self.file_for_analysis[0])
+                #print(gdal_obj)
+
+                img = self.get_matrix_by_name_id(name=self.file_for_analysis[0])
+
+                edges_canny_img = adjusted_canny(img,sigma=self.settings.value('data')['canny_sigma'],
+                                    low_threshold=self.settings.value('data')['canny_lowt'],
+                                    high_threshold=self.settings.value('data')['canny_hight'])
+
+                hsize, wsize = np.shape(edges_canny_img)
+                # output to geotiff
+                
+                driver = gdal.GetDriverByName("GTiff")
+                outdata = driver.Create(save_geotiff_path, wsize, hsize, 1, gdal.GDT_UInt16)
+                outdata.SetGeoTransform(gdal_obj.GetGeoTransform()) #set geotransform 
+                outdata.SetProjection(gdal_obj.GetProjection())#sets projection
+                outdata.GetRasterBand(1).WriteArray(edges_canny_img)
+                outdata.GetRasterBand(1).SetNoDataValue(-9999) #alpha values
+                outdata.FlushCache() ##saves to disk!!
+                outdata = None
+                edges_canny_img=None
+                gdal_obj=None
+ 
+                # reopen file to project
+                self.add_data_obj(save_geotiff_path, parent_obj=self.file_for_analysis[0])
+
+                # rewrite data in a layer canny edges (correction)
+                try:
+                    basename = os.path.basename(save_geotiff_path).split('.')[0]
+                except:
+                    basename = os.path.basename(save_geotiff_path)
+                # print('basename=',basename)
+                self.set_data_by_name_id(name=basename, newdata=edges_canny_img)
+                self.update_list2storage()
+                del edges_canny_img 
+
+
+
+        elif self.current_method == 'line':
             # select file name for analysis
             save_shp_path = self.save_shp_file()
             if save_shp_path:
@@ -933,7 +1119,7 @@ class Window(QMainWindow):
                 point_file_name = self.file_for_analysis[0]
                 raster_pixel_size = [self.settings.value('data')['raster_res'],self.settings.value('data')['raster_res']]
                 raster_radius = self.settings.value('data')['raster_radius']
-
+                
                 shp_file_path = self.get_path_by_name_id(name=self.file_for_analysis[0])
                 extent = self.get_extent_by_name_id(name=self.file_for_analysis[0])
                 heatmap = np.flipud(self.generate_heatmap(point_file_name, raster_pixel_size, raster_radius, aoi_extent=extent))
@@ -1206,7 +1392,7 @@ class Window(QMainWindow):
                         self.update_list2storage()
                         break
 
-        def show_stat(self):
+    def show_stat(self):
         print('show stat was called')
         try:
             item_list = [item.text() for item in self.layers.layer_list.selectedItems()]
@@ -1460,7 +1646,7 @@ class Window(QMainWindow):
         msgBox.setIcon(QMessageBox.Information)
         msgBox.setTextFormat(Qt.RichText)
         msgBox.setText(
-            txt_label + '\n <br><a href=\'http://fegi.ru\'>fegi.ru</a> <br> <a href=\'http://lefa.geologov.net\'>lefa.geologov.net</a>')
+            txt_label + '\n <br><a href=\'http://fegi.ru\'>fegi.ru</a> <br> <a href=\'http://lefa.geologov.net\'>lefa.geologov.net</a> <br> <a href=\'https://t.me/pylefa\'>telegram</a>')
         msgBox.exec_()
 
     # TODO show result method
@@ -1970,6 +2156,8 @@ class Preferences(QWidget):
 
         # line analysis widgets
         tab_line_name = self.parent.language_dict['commands']['line_det_tab_name'][self.parent.selected_language]
+        self.radioNone = QRadioButton(
+            self.parent.language_dict['commands']['line_det_bin_none'][self.parent.selected_language])
         self.radioCanny = QRadioButton(
             self.parent.language_dict['commands']['line_det_bin_canny'][self.parent.selected_language])
         self.radioFlows = QRadioButton(
@@ -1985,8 +2173,12 @@ class Preferences(QWidget):
         if self.parent.settings.value('data')['binarization'] == 'canny':
             self.radioCanny.setChecked(True)
             self.sigmaCannySpin.setEnabled(True)
+        elif self.parent.settings.value('data')['binarization'] == 'none':
+            self.radioNone.setChecked(True)
+            self.sigmaCannySpin.setEnabled(False)
         else:
             self.radioFlows.setChecked(True)
+            self.sigmaCannySpin.setEnabled(False)
         binaryMethodLabel = QLabel(
             self.parent.language_dict['commands']['line_det_bin_label'][self.parent.selected_language])
         houghTransformLabel = QLabel(
@@ -2090,21 +2282,65 @@ class Preferences(QWidget):
         self.spinFracWinSize = QSpinBox(self)
         self.spinFracWinSize.setRange(100, 10000)
         self.spinFracWinSize.setValue(self.parent.settings.value('data')['fractal_window_size'])
+        
+        #widgets for Canny edge detection tab
+        # fractal dimension analysis
+        tab_canny_name = self.parent.language_dict['commands']['canny_set_tab_name'][
+            self.parent.selected_language]
+        cannySigmaLabel = QLabel(
+            self.parent.language_dict['commands']['canny_sigma_label'][self.parent.selected_language])
+        cannyLowThreshLabel = QLabel(
+            self.parent.language_dict['commands']['canny_low_thresh_label'][self.parent.selected_language])
+        cannyHighThreshLabel = QLabel(
+            self.parent.language_dict['commands']['canny_high_thresh_label'][self.parent.selected_language])
+        self.spinSigma = QDoubleSpinBox(self)
+        self.spinSigma.setRange(0.1, 100)
+        self.spinSigma.setValue(self.parent.settings.value('data')['canny_sigma'])
+        self.spinLowThresh = QSpinBox(self)
+        self.spinLowThresh.setRange(1, 100)
+        self.spinLowThresh.setValue(self.parent.settings.value('data')['canny_lowt'])
+        self.spinHighThresh = QSpinBox(self)
+        self.spinHighThresh.setRange(1, 100)
+        self.spinHighThresh.setValue(self.parent.settings.value('data')['canny_hight'])
+        self.presetsCannyCombo = QComboBox()
 
+        apply_preset_btn_canny = QPushButton(
+            self.parent.language_dict['commands']['line_apply_preset'][self.parent.selected_language])
+        apply_preset_btn_canny.clicked.connect(lambda: self.apply_canny_preset(self.presetsCannyCombo.currentText()))
+
+        load_faults_preset_label = QLabel(
+            self.parent.language_dict['commands']['fault_load_file_preset_label'][self.parent.selected_language]
+        )
+        load_canny_preset_btn = QPushButton(
+            self.parent.language_dict['commands']['fault_load_file_preset_btn'][self.parent.selected_language]
+        )
+        save_canny_preset_btn = QPushButton(
+            self.parent.language_dict['commands']['fault_save_file_preset_btn'][self.parent.selected_language]
+        )
+
+        load_canny_preset_btn.clicked.connect(self.canny_preset_from_file)
+        save_canny_preset_btn.clicked.connect(self.canny_preset_to_file)
+
+
+        #TODO tab creating add new
         # create tab components
         # TODO set current tab dependingly of selected procedure https://stackoverflow.com/questions/45828478/how-to-set-current-tab-of-qtabwidget-by-name
         toolBox = QTabWidget()
         pageLineam = QWidget(toolBox)  # page for line detection settings
         layoutLineam = QGridLayout()  # layout for line detection settings
-        pageFaults = QWidget(toolBox)  # page for line detection settings
-        layoutFaults = QGridLayout()  # layout for line detection settings
-        pageDens = QWidget(toolBox)  # page for line detection settings
-        layoutDens = QGridLayout()  # layout for line detection settings
+        pageFaults = QWidget(toolBox)  # page for faults detection settings
+        layoutFaults = QGridLayout()  # layout for faults detection settings
+        pageDens = QWidget(toolBox)  # page for coverage generation settings
+        layoutDens = QGridLayout()  # layout for coverage generation settings
+        pageEdges = QWidget(toolBox)  # page for coverage generation settings
+        layoutCannyEdges = QGridLayout()  # layout for coverage generation settings
+
 
         # add widgets to lineaments
         layoutLineam.addWidget(binaryMethodLabel, 0, 0, 1, 3)
-        layoutLineam.addWidget(self.radioCanny, 1, 0)  # Добавляем компоненты
-        layoutLineam.addWidget(self.radioFlows, 1, 1)
+        layoutLineam.addWidget(self.radioNone, 1, 0) 
+        layoutLineam.addWidget(self.radioCanny, 1, 1)  # Добавляем компоненты
+        layoutLineam.addWidget(self.radioFlows, 1, 2)
         layoutLineam.addWidget(self.sigmaCannyLabel, 2, 0)
         layoutLineam.addWidget(self.sigmaCannySpin, 2, 1)
         layoutLineam.addWidget(houghTransformLabel, 3, 0)
@@ -2128,6 +2364,7 @@ class Preferences(QWidget):
         # set radio buttons
         self.radioCanny.clicked.connect(lambda: disable_canny_sigma(self.sigmaCannySpin, val=True))
         self.radioFlows.clicked.connect(lambda: disable_canny_sigma(self.sigmaCannySpin, val=False))
+        self.radioNone.clicked.connect(lambda: disable_canny_sigma(self.sigmaCannySpin, val=False))
 
         # add widgets to faults tab
         layoutFaults.addWidget(houghTransformLabelFaults, 2, 0)
@@ -2154,13 +2391,31 @@ class Preferences(QWidget):
         layoutDens.addWidget(radiusLabel, 3, 0)
         layoutDens.addWidget(self.spinRadius, 3, 1)
 
+        # add widgets to Canny edges tab
+        #not done
+        layoutCannyEdges.addWidget(cannySigmaLabel, 0, 0)
+        layoutCannyEdges.addWidget(cannyLowThreshLabel, 1, 0)
+        layoutCannyEdges.addWidget(self.spinSigma, 0, 1)
+        layoutCannyEdges.addWidget(self.spinLowThresh, 1, 1)
+        layoutCannyEdges.addWidget(cannyHighThreshLabel, 2, 0)
+        layoutCannyEdges.addWidget(self.spinHighThresh, 2, 1)
+        layoutCannyEdges.addWidget(presetsLineamLabel, 7, 0)
+        layoutCannyEdges.addWidget(self.presetsCannyCombo, 7, 1)
+        layoutCannyEdges.addWidget(apply_preset_btn_canny, 7, 2)
+        layoutCannyEdges.addWidget(load_line_preset_label, 8, 0)
+        layoutCannyEdges.addWidget(load_line_preset_btn, 8, 1)
+        layoutCannyEdges.addWidget(save_line_preset_btn, 8, 2)
+
+
         # add tab layouts to page, add tab to toolBox
         pageLineam.setLayout(layoutLineam)
         pageFaults.setLayout(layoutFaults)
         pageDens.setLayout(layoutDens)
+        pageEdges.setLayout(layoutCannyEdges)
         toolBox.addTab(pageLineam, tab_line_name)
         toolBox.addTab(pageFaults, tab_fault_name)
         toolBox.addTab(pageDens, tab_fdens_name)
+        toolBox.addTab(pageEdges, tab_canny_name)
 
         # toolBox.setCurrentIndex(0)
         vbox = QVBoxLayout()
@@ -2194,15 +2449,23 @@ class Preferences(QWidget):
             'line_length': 10,
             'line_gap': 1
         }
+        dict_canny = {
+            'canny_sigma': 10,
+            'canny_lowt': 10,
+            'canny_hight': 30
+        }
 
         # presets default
         self.line_presets = {'small': dict_small, 'medium': dict_medium, 'many': dict_many}
         self.faults_presets = {'faults def': dict_faults}
+        self.canny_presets = {'canny def': dict_canny}
 
         # load presets from disk to COmbo Boxes
         self.load_presets()  # read preset files from disk into dict
         self.presetsLineamCombo.addItems([*self.line_presets])
         self.presetsFaultsCombo.addItems([*self.faults_presets])
+        self.presetsCannyCombo.addItems([*self.canny_presets])
+        #TODO add loading Canny presets
 
         # resize window before showing it to user
         self.resize(550, 350)
@@ -2221,6 +2484,9 @@ class Preferences(QWidget):
                     if 'lines' in fname_full:
                         new_dict = self.load_file_to_dict(fname_full)
                         self.line_presets.update({key: new_dict})
+                    if 'edges' in fname_full:
+                        new_dict = self.load_file_to_dict(fname_full)
+                        self.canny_presets.update({key: new_dict})
 
     def setWidgetsVals(self):
         self.sigmaCannySpin.setValue(self.parent.settings.value('data')['line_sigma'])
@@ -2247,6 +2513,12 @@ class Preferences(QWidget):
         self.spinHoughLenFaults.setValue(set_dict['line_length'])
         self.spinHoughGapFaults.setValue(set_dict['line_gap'])
 
+    def apply_canny_preset(self, pres_name):
+        set_dict = copy.deepcopy(self.canny_presets[pres_name])
+        self.spinSigma.setValue(set_dict['canny_sigma'])
+        self.spinLowThresh.setValue(set_dict['canny_lowt'])
+        self.spinHighThresh.setValue(set_dict['canny_hight'])
+
     def applySettings(self):
         print("try to apply settings")
         current_dict = {
@@ -2260,13 +2532,18 @@ class Preferences(QWidget):
             'density_window_size': self.spinDensWinSize.value(),
             'fractal_window_size': self.spinFracWinSize.value(),
             'raster_res': self.spinRasterRes.value(),
-            'raster_radius': self.spinRadius.value()
+            'raster_radius': self.spinRadius.value(),
+            'canny_sigma':self.spinSigma.value(),
+            'canny_lowt':self.spinLowThresh.value(),
+            'canny_hight':self.spinHighThresh.value()
         }
         if self.radioCanny.isChecked():
             current_dict.update({'binarization': 'canny'})
             current_dict.update({'line_sigma': self.sigmaCannySpin.value()})
-        else:
+        elif self.radioFlows.isChecked():
             current_dict.update({'binarization': 'flows'})
+        else:
+            current_dict.update({'binarization': 'none'})
         self.parent.saveSettings(set_dict=current_dict)
         self.close()
         # TODO сделать ресет настроек из пресетов
@@ -2288,6 +2565,14 @@ class Preferences(QWidget):
             'line_gap': self.spinHoughGapFaults.value(),
         }
         return current_dict
+    
+    def canny_settings_to_dict(self):
+        current_dict = {
+            'canny_sigma': self.spinSigma.value(),
+            'canny_lowt': self.spinLowThresh.value(),
+            'canny_hight': self.spinHighThresh.value(),
+        }
+        return current_dict
 
     def dict_to_line_settings(self, current_dict):
         try:
@@ -2305,6 +2590,15 @@ class Preferences(QWidget):
             self.spinHoughGapFaults.setValue(current_dict['line_gap'])
         except:
             self.parent.msg_info(self.language_dict['commands']['load_file_preset_error'][self.selected_language])
+
+    def dict_to_canny_settings(self, current_dict):
+        try:
+            self.spinSigma.setValue(current_dict['canny_sigma'])
+            self.spinLowThresh.setValue(current_dict['canny_lowt'])
+            self.spinHighThresh.setValue(current_dict['canny_hight'])
+        except:
+            self.parent.msg_info(self.language_dict['commands']['load_file_preset_error'][self.selected_language])
+
 
     def get_save_preset_filename(self=None, txt="Save preset as"):
         path = QFileDialog.getSaveFileName(self, (txt), '', ("lefa preset file (*.lpf)"))
@@ -2365,6 +2659,21 @@ class Preferences(QWidget):
             cur_dict = self.load_file_to_dict(fn)
             print(cur_dict)
             self.dict_to_fault_settings(cur_dict)
+    
+    # save canny set btn click
+    def canny_preset_to_file(self):
+        cur_dict = self.canny_settings_to_dict()
+        fn = self.get_save_preset_filename()
+        if fn != None:
+            self.save_dict_to_file(fn, cur_dict)
+
+    # load canny btn click
+    def canny_preset_from_file(self):
+        fn = self.get_open_preset_filename()
+        if fn != None:
+            cur_dict = self.load_file_to_dict(fn)
+            print(cur_dict)
+            self.dict_to_canny_settings(cur_dict)
 
 
 # TODO LAYERS WINDOW
