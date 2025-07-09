@@ -984,7 +984,7 @@ class Window(QMainWindow):
                 try:
                     interp = LinearNDInterpolator(list(zip(ccell, rcell)), valcell)
                     img_i = interp(X, Y)
-                    #img_i = np.flipud(img_i)
+                    img_i = np.flipud(img_i)
                     hsize, wsize = np.shape(img_i)
 
                     print('extent=',extent)
