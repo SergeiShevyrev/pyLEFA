@@ -6,8 +6,8 @@
 </languages>
 <commands>
     <maint_title>
-        <rus>Erosion Network Order Extractor 0.6a</rus>
-        <eng>Erosion Network Order Extractor 0.6a</eng>
+        <rus>pyLEFA 0.62a</rus>
+        <eng>pyLEFA 0.62a</eng>
     </maint_title>
     <menu_file>
         <rus>Файл</rus>
@@ -58,17 +58,96 @@
         <eng>Help</eng>
     </menu_help>
     <menu_about_lefa>
-        <rus>О программе pyLEFA 0.6a</rus>
-        <eng>About pyLEFA 0.6a</eng>
+        <rus>О программе pyLEFA 0.62a</rus>
+        <eng>About pyLEFA 0.62a</eng>
     </menu_about_lefa>
     <menu_about>
-        <rus>О программе ENOE 0.6a</rus>
-        <eng>About ENOE 0.6a</eng>
+        <rus>О программе ENOE 0.62a</rus>
+        <eng>About ENOE 0.62a</eng>
     </menu_about>
     <msg_reset_lang>
         <rus>Для корректного применения переключения языка требуется перезапуск программы</rus>
         <eng>Language change may require application restart</eng>
     </msg_reset_lang>
+    <msg_pixel_size_too_big>
+        <rus>Радиус вычислений (размер пикселя) очень большой, будет уменьшен 10% размера растра</rus>
+        <eng>Compution radius is too big, will be set 10% raster size</eng>
+    </msg_pixel_size_too_big>
+
+    <msg_unknown_error>
+        <rus>Неизвестная ошибка</rus>
+        <eng>Unknown error</eng>
+    </msg_unknown_error>
+
+    <new_project_button_tooltip>
+        <rus>Создать новый проект</rus>
+        <eng>Create new project</eng>
+    </new_project_button_tooltip>
+
+    <save_project_button_tooltip>
+        <rus>Сохранить проект</rus>
+        <eng>Save project</eng>
+    </save_project_button_tooltip>
+
+    <open_project_button_tooltip>
+        <rus>Открыть проект</rus>
+        <eng>Open project</eng>
+    </open_project_button_tooltip>
+
+    <open_rastervector_button_tooltip>
+        <rus>Открыть источник растровых или векторных данных...</rus>
+        <eng>Open source of vector or raster data...</eng>
+    </open_rastervector_button_tooltip>
+
+    <open_shp_button_tooltip>
+        <rus>Открыть SHP векторный слой...</rus>
+        <eng>Open SHP vector...</eng>
+    </open_shp_button_tooltip>
+
+    <detect_canny_button_tooltip>
+        <rus>Определить границы (Canny) на изображении...</rus>
+        <eng>Detect edgeds (Canny) on image...</eng>
+    </detect_canny_button_tooltip>
+
+    <rasterdensmap_canny_button_tooltip>
+        <rus>Вычислить карту плотности линейных структур в виде грида...</rus>
+        <eng>Compute raster grid lineaments density map...</eng>
+    </rasterdensmap_canny_button_tooltip>
+
+    <detect_line_button_tooltip>
+        <rus>Определить линии на изображении...</rus>
+        <eng>Detect lines on image...</eng>
+    </detect_line_button_tooltip>
+
+    <detect_fault_button_tooltip>
+        <rus>Детектирование разломов на обнаруженных линиях...</rus>
+        <eng>Detect faults over detected lines...</eng>
+    </detect_fault_button_tooltip>
+
+    <compute_line_dens_button_tooltip>
+        <rus>Вычислить карту плотности линий...</rus>
+        <eng>Compute line density map...</eng>
+    </compute_line_dens_button_tooltip>
+
+    <compute_minkowski_button_tooltip>
+        <rus>Вычислить карту фрактальной размерности Минковского...</rus>
+        <eng>Compute Minkowski fractal dimension coverage...</eng>
+    </compute_minkowski_button_tooltip>
+
+    <compute_rose_button_tooltip>
+        <rus>Вычислить розу-диаграмму для файла линий</rus>
+        <eng>Compute rose diagram for line file</eng>
+    </compute_rose_button_tooltip>
+
+    <compute_heatmap_button_tooltip>
+        <rus>Вычислить тепловую карту для SHP-файла точек</rus>
+        <eng>Compute heatmap diagram for point shape file</eng>
+    </compute_heatmap_button_tooltip>
+
+    <compute_datatable_button_tooltip>
+        <rus>Составить таблицу данных для файла линий и разломов</rus>
+        <eng>Compose datatable for line and faults file</eng>
+    </compute_datatable_button_tooltip>
 
     <layers_window_title>
         <rus>Файлы проекта</rus>
@@ -252,6 +331,11 @@
         <eng>Binarization method:</eng>
     </line_det_bin_label>
 
+     <line_det_bin_none>
+        <rus>Не выбран</rus>
+        <eng>None</eng>
+    </line_det_bin_none>
+    
     <line_det_bin_canny>
         <rus>Кэнни</rus>
         <eng>Canny</eng>
@@ -356,6 +440,36 @@
         <rus>Генерация покрытий</rus>
         <eng>Coverage generator</eng>
     </density_fractal_set_tab_name>
+
+    <canny_set_tab_name>
+        <rus>Поиск границ Кэнни</rus>
+        <eng>Canny edge detection</eng>
+    </canny_set_tab_name>
+
+    <canny_sigma_label>
+        <rus>Значение sigma</rus>
+        <eng>Sigma value</eng>
+    </canny_sigma_label>
+
+    <canny_low_thresh_label>
+        <rus>Нижнее пороговое значение</rus>
+        <eng>Low threshold value</eng>
+    </canny_low_thresh_label>
+
+    <canny_high_thresh_label>
+        <rus>Верхнее пороговое значение</rus>
+        <eng>High threshold value</eng>
+    </canny_high_thresh_label>
+
+    <canny_selected_preset_label>
+        <rus>Пресет</rus>
+        <eng>Preset</eng>
+    </canny_selected_preset_label>
+
+    <canny_preset_label>
+        <rus>Загрузить пресет</rus>
+        <eng>Load preset</eng>
+    </canny_preset_label>
 
     <density_win_size_label>
         <rus>Сторона окна осреднения плотности, м</rus>
