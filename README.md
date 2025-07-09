@@ -1,4 +1,4 @@
-<h1>PyLEFA (Lineament Extraction Fracture Analysis) v. 0.61a</h1>
+<h1>PyLEFA (Lineament Extraction Fracture Analysis) v. 0.62a</h1>
 Analytical GUI remote sensing software for lineament detection and fracture analysis.
 Download Windows installation <a href='https://sourceforge.net/projects/pylefa/files/pylefasetup061a.exe/download'>here</a>
 
