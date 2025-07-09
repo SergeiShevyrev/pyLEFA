@@ -213,7 +213,11 @@ def gray2binary(img,method,sigma=10):
         img = np.uint8(np.float64((img - np.min(img)) / (np.max(img) - np.min(img))) * 255)
         imgBW = np.uint16(skmf.canny(img))
     return imgBW
-    
+
+def adjusted_canny(img,sigma=1,low_threshold=1, high_threshold=25):
+    edges = skmf.canny(img, sigma=sigma, low_threshold=low_threshold, high_threshold=high_threshold)
+    return edges
+
 def detectPLineHough(imgBW,amount):   #P for probabilistic
     #C. Galamhos, J. Matas and J. Kittler, "Progressive probabilistic
     #       Hough transform for line detection", in IEEE Computer Society
@@ -1504,6 +1508,5 @@ if __name__=='__main__':
                 p0, p1 = fault
                 plt.plot((p0[0], p1[0]), (p0[1], p1[1]))
     plt.show() 
-    
-    #надо массивы прогнать через коллинеарность и вывести результат
+
     
