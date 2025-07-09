@@ -1,0 +1,4 @@
+canny_sigma=5
+canny_lowt=10
+canny_hight=30
+
